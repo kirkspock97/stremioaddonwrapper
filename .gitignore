@@ -1,0 +1,7 @@
+# Ignore environment and log files
+.env
+nohup.out
+npm.log
+nohup.out
+npm.log
+.env
