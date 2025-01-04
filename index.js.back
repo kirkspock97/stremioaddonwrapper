@@ -1,0 +1,90 @@
+const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
+const axios = require("axios");
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config(); // Load environment variables from .env
+
+// Initialize Express and enable CORS
+const app = express();
+app.use(cors()); // Enable cross-origin requests
+
+// Updated Add-on manifest (empty catalogs array)
+const manifest = {
+  id: "org.stremio.combined",
+  version: "0.0.1",
+  name: "Stremio Addon Wrapper",
+  description: "Allows for a single URL for all of your addons. Explore Stremthru for proxying options (to avoid IP restrictions.)",
+  resources: ["stream"], // Only stream resource
+  types: ["movie", "series"], // Movie and series types
+  catalogs: [] // Empty catalogs array to satisfy stremio-addon-sdk requirements
+};
+
+const builder = new addonBuilder(manifest);
+
+// Fetch all source URLs from .env and filter out empty ones
+const sourceUrls = Object.keys(process.env)
+  .filter((key) => key.startsWith("SOURCE_") && process.env[key])
+  .map((key) => process.env[key]);
+
+if (sourceUrls.length === 0) {
+  console.warn("No valid source URLs defined in .env. The add-on might not return any data.");
+}
+
+// Timeout duration (milliseconds)
+const TIMEOUT_MS = 2000;
+
+// Helper function to fetch from a source with optional timeout
+async function fetchFromSource(sourceUrl, type, id, timeout) {
+  const url = `${sourceUrl}/stream/${type}/${id}.json`;
+  try {
+    const response = await axios.get(url, { timeout: timeout });
+    return response.data.streams || [];
+  } catch (error) {
+    if (error.code === "ECONNABORTED") {
+      console.warn(`Request to ${sourceUrl} timed out after ${timeout}ms.`);
+    } else {
+      console.error(`Error fetching from ${sourceUrl}:`, error.message);
+    }
+    return [];
+  }
+}
+
+// Helper function to deduplicate streams across all sources
+function deduplicateStreams(streams) {
+  const seen = new Set();
+  const deduplicatedStreams = [];
+
+  streams.forEach((stream) => {
+    // Define a unique key for each stream (e.g., by combining URL and title)
+    const uniqueKey = `${stream.url || ""}-${stream.title || ""}`;
+    if (!seen.has(uniqueKey)) {
+      seen.add(uniqueKey);
+      deduplicatedStreams.push(stream);
+    }
+  });
+
+  return deduplicatedStreams;
+}
+
+// Stream handler
+builder.defineStreamHandler(async ({ type, id }) => {
+  // Step 1: Fetch the first source without timeout
+  const firstSourceResults = await fetchFromSource(sourceUrls[0], type, id, undefined);
+
+  // Step 2: If the first source returns results, apply the timeout for the other sources
+  const timeoutForOthers = firstSourceResults.length > 0 ? TIMEOUT_MS : undefined;
+
+  // Step 3: Fetch from all sources
+  const streams = await Promise.all(
+    sourceUrls.map((sourceUrl) => fetchFromSource(sourceUrl, type, id, timeoutForOthers))
+  );
+
+  // Flatten results and deduplicate streams across all sources
+  const allStreams = streams.flat();
+  const deduplicatedStreams = deduplicateStreams(allStreams);
+
+  return { streams: deduplicatedStreams };
+});
+
+// Start the server
+serveHTTP(builder.getInterface(), { port: 7000 });
