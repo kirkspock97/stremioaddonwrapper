@@ -67,6 +67,8 @@ http://<server-ip>:7000/manifest.json
 ## Features
 	•	Randomized Streams: When RANDOMIZE_STREAMS is set to true, the addon will serve the streams in a random order, regardless of the source.
 	•	Stream Caching: The addon stores stream data in a SQLite database (streams.db) to prevent repeated fetching from sources.
+ 	• 	All your addons in one place: Sick of updating your stremio login/ logins for your family every time? Have them all in one place for ease of access.
+ 	
 
 
 ## License
