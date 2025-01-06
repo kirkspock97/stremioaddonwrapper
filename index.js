@@ -6,7 +6,7 @@ require("dotenv").config();
 // Add-on manifest
 const manifest = {
   id: "org.stremio.combined",
-  version: "0.0.12",
+  version: "0.0.14",
   name: "Stremio Addon Wrapper with Cache Streaming",
   description: "Fetches results from add-ons, checks cache status, and serves cached files for streaming.",
   resources: ["stream"],
