@@ -1,0 +1,13 @@
+services:
+  stremioaddonwrapper:
+    image: kirkspock97/stremioaddonwrapper:latest
+    ports:
+      - "7000:7000"
+    environment:
+      - TIMEOUT_MS=2000
+      - SOURCE_1= SOURCE_URL
+      - SOURCE_2= SOURCE_URL
+      - SOURCE_3= SOURCE_URL
+     volumes:
+      - ./data:/data  # Optional: Volume to persist data
+    restart: unless-stopped
