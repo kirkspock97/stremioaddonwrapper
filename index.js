@@ -1,6 +1,7 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const axios = require("axios");
-require("dotenv").config(); // Load environment variables from .env
+const sqlite3 = require("sqlite3").verbose(); // Import SQLite
+require("dotenv").config();
 
 // Add-on manifest
 const manifest = {
@@ -10,7 +11,7 @@ const manifest = {
   description: "Fetches results from add-ons, checks cache status, and serves cached files for streaming.",
   resources: ["stream"],
   types: ["movie", "series"],
-  catalogs: []
+  catalogs: [],
 };
 
 const builder = new addonBuilder(manifest);
@@ -24,8 +25,30 @@ if (sourceUrls.length === 0) {
   console.warn("No valid source URLs defined in .env. The add-on might not return any data.");
 }
 
-// Timeout duration (milliseconds) - configurable via environment variable
-const TIMEOUT_MS = process.env.TIMEOUT_MS || 2000; // Default to 2000ms if not set
+// Timeout duration (milliseconds)
+const TIMEOUT_MS = process.env.TIMEOUT_MS || 2000;
+
+// Check if randomization is enabled from the .env file
+const RANDOMIZE_STREAMS = process.env.RANDOMIZE_STREAMS === "true";
+
+// Set up the database
+const db = new sqlite3.Database("./streams.db", (err) => {
+  if (err) {
+    console.error("Error opening database:", err);
+  } else {
+    console.log("Database connected.");
+  }
+});
+
+// Create a table for storing stream results if it doesn't exist
+db.run(`
+  CREATE TABLE IF NOT EXISTS stream_cache (
+    id TEXT PRIMARY KEY,
+    type TEXT,
+    streams TEXT,
+    timestamp INTEGER
+  );
+`);
 
 // Helper function to fetch from a source
 async function fetchFromSource(sourceUrl, type, id, timeout) {
@@ -34,37 +57,40 @@ async function fetchFromSource(sourceUrl, type, id, timeout) {
     const response = await axios.get(url, { timeout });
     return response.data.streams || [];
   } catch (error) {
-    if (error.code === "ECONNABORTED") {
-      console.warn(`Request to ${sourceUrl} timed out after ${timeout}ms.`);
-    } else {
-      console.error(`Error fetching from ${sourceUrl}:`, error.message);
-    }
+    console.error(`Error fetching from ${sourceUrl}:`, error.message);
     return [];
   }
 }
 
-// Helper function to check torrent cache status and get direct streaming URL
-async function getCachedStreamUrl(torrentUrl) {
-  const API_BASE = process.env.TORRENT_CACHE_API;
-  const API_VERSION = process.env.TORRENT_CACHE_API_VERSION;
-  const API_ENDPOINT = process.env.TORRENT_CACHE_API_ENDPOINT;
-  const API_KEY = process.env.TORRENT_CACHE_API_KEY;
+// Check if the results are cached in the database
+function checkCache(type, id) {
+  return new Promise((resolve, reject) => {
+    db.get("SELECT * FROM stream_cache WHERE id = ? AND type = ?", [id, type], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row);
+      }
+    });
+  });
+}
 
-  const url = `${API_BASE}/${API_VERSION}${API_ENDPOINT}`;
-  try {
-    const response = await axios.post(
-      url,
-      { torrent: torrentUrl },
-      { headers: { Authorization: `Bearer ${API_KEY}` } }
+// Store the search results in the database
+function storeCache(type, id, streams) {
+  return new Promise((resolve, reject) => {
+    const timestamp = Date.now();
+    db.run(
+      "INSERT OR REPLACE INTO stream_cache (id, type, streams, timestamp) VALUES (?, ?, ?, ?)",
+      [id, type, JSON.stringify(streams), timestamp],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
     );
-
-    if (response.data.cached && response.data.direct_url) {
-      return response.data.direct_url; // Return the direct streaming URL
-    }
-  } catch (error) {
-    console.error(`Error checking cache status for ${torrentUrl}:`, error.message);
-  }
-  return null; // Return null if not cached or an error occurs
+  });
 }
 
 // Helper function to process streams
@@ -74,41 +100,61 @@ async function processStreams(streams) {
       if (stream.url && stream.url.includes("magnet:")) {
         const cachedUrl = await getCachedStreamUrl(stream.url);
         if (cachedUrl) {
-          // Update the stream with the direct streaming URL
           return { ...stream, url: cachedUrl, cached: true };
         }
       }
-      return { ...stream, cached: false }; // Mark as not cached
+      return { ...stream, cached: false };
     })
   );
 }
 
 // Stream handler
 builder.defineStreamHandler(async ({ type, id }) => {
-  // Fetch from all sources
-  const streams = await Promise.all(
-    sourceUrls.map((sourceUrl) => fetchFromSource(sourceUrl, type, id, TIMEOUT_MS))
-  );
+  // First, check if the result is cached in the database
+  const cachedResult = await checkCache(type, id);
 
-  // Flatten results
-  const allStreams = streams.flat();
+  if (cachedResult) {
+    // If cached, process and return cached streams
+    console.log("Returning cached results from the database");
+    const cachedStreams = JSON.parse(cachedResult.streams);
+    const processedStreams = await processStreams(cachedStreams);
 
-  // Deduplicate streams
-  const seen = new Set();
-  const deduplicatedStreams = allStreams.filter((stream) => {
-    const key = `${stream.url || ""}-${stream.title || ""}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    // Apply randomization if enabled
+    const sortedStreams = RANDOMIZE_STREAMS
+      ? processedStreams.sort(() => Math.random() - 0.5) // Shuffle streams
+      : processedStreams.sort((a, b) => b.cached - a.cached); // Default sorting
 
-  // Process streams to check cache and get streaming URLs
-  const processedStreams = await processStreams(deduplicatedStreams);
+    return { streams: sortedStreams };
+  } else {
+    // If not cached, fetch from all sources
+    console.log("No cache found, fetching from external sources...");
+    const streams = await Promise.all(
+      sourceUrls.map((sourceUrl) => fetchFromSource(sourceUrl, type, id, TIMEOUT_MS))
+    );
 
-  // Sort streams: Cached torrents first
-  const sortedStreams = processedStreams.sort((a, b) => b.cached - a.cached);
+    // Flatten results
+    const allStreams = streams.flat();
 
-  return { streams: sortedStreams };
+    // Deduplicate streams
+    const seen = new Set();
+    const deduplicatedStreams = allStreams.filter((stream) => {
+      const key = `${stream.url || ""}-${stream.title || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Process streams and store them in the database
+    const processedStreams = await processStreams(deduplicatedStreams);
+    await storeCache(type, id, processedStreams);
+
+    // Apply randomization if enabled
+    const sortedStreams = RANDOMIZE_STREAMS
+      ? processedStreams.sort(() => Math.random() - 0.5) // Shuffle streams
+      : processedStreams.sort((a, b) => b.cached - a.cached); // Default sorting
+
+    return { streams: sortedStreams };
+  }
 });
 
 // Start the server
