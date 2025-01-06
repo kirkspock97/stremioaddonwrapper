@@ -24,8 +24,8 @@ if (sourceUrls.length === 0) {
   console.warn("No valid source URLs defined in .env. The add-on might not return any data.");
 }
 
-// Timeout duration (milliseconds)
-const TIMEOUT_MS = 2000;
+// Timeout duration (milliseconds) - configurable via environment variable
+const TIMEOUT_MS = process.env.TIMEOUT_MS || 2000; // Default to 2000ms if not set
 
 // Helper function to fetch from a source
 async function fetchFromSource(sourceUrl, type, id, timeout) {
