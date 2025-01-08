@@ -8,6 +8,7 @@ This is a Stremio Addon Wrapper that fetches results from various sources.
 - **Source Randomization**: Optionally randomize the order of streams served (to alleviate burden on individual API tokens.)
 - **Configurable Timeout**: Timeout duration for fetching data from sources.
 - **Environment Variables**: Customize sources and configuration using the `.env` file.
+- **Database Storing**: All results are stored in a database, so that they can easily be fetched for the next user. When no results are found, the database deletes the cache, allowing for future releases to be cached with no user input required.
 
 ## Getting Started
 
