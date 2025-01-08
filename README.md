@@ -62,8 +62,50 @@ http://<server-ip>:7000/manifest.json
 ```
 
 ## Database Management
-	•	Database File: The SQLite database streams.db is stored in the ./data directory by default.
+	•	Database File: The SQLite database streams.db is stored in the home directory of the product, and bind mounted to the docker container by default.
 	•	Cache Clearing: You can manually clear the database by deleting the streams.db file or truncating it.
+
+ ## Database Management - Included Script
+  You can remove the individual shows, seasons and episodes with the "remove_imdb.sh" script.
+  ```bash
+nano remove_imdb.sh"
+```
+Then paste in this code:
+```bash
+#!/bin/bash
+
+# Script to remove all records related to an IMDb entry from ./streams.db
+
+IMDB_ENTRY=$1  # Get the IMDb entry from the command-line argument
+
+if [ -z "$IMDB_ENTRY" ]; then
+  echo "Please provide an IMDb entry (e.g., tt3581920)."
+  exit 1
+fi
+
+# Path to your SQLite database
+DB_PATH="./streams.db"
+
+# Execute the DELETE command on the SQLite database
+echo "Removing records related to $IMDB_ENTRY from database $DB_PATH"
+
+# Running the SQLite3 command
+sqlite3 "$DB_PATH" <<EOF
+DELETE FROM stream_cache WHERE id LIKE '${IMDB_ENTRY}%';
+EOF
+
+# Optionally, print a confirmation message
+echo "Records related to $IMDB_ENTRY have been removed."
+```
+Then run this to make it executable:
+```bash
+chmod +x ./remove_imdb.sh
+```
+Then simply run this to remove from the database:
+```bash
+./remove_imdb.sh {IMDB CODE}:(# of season):(# of episode)
+```
+
 
 ## Features
 	•	Randomized Streams: When RANDOMIZE_STREAMS is set to true, the addon will serve the streams in a random order, regardless of the source.
