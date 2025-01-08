@@ -1,13 +1,12 @@
 services:
   stremioaddonwrapper:
-    image: kirkspock97/stremioaddonwrapper:latest
+    image: kirkspock97/addonwrapperdb:latest
+    container_name: stremioaddonwrapper
     ports:
-      - "7000:7000"
-    environment:
-      - TIMEOUT_MS=2000
-      - SOURCE_1= SOURCE_URL
-      - SOURCE_2= SOURCE_URL
-      - SOURCE_3= SOURCE_URL
-     volumes:
-      - ./data:/data  # Optional: Volume to persist data
+      - "7000:7000"  # Expose port 7000 for external access
+    volumes:
+      - ./streams.db:/usr/src/app/streams.db  # Mount the database file
+      - ./data:/data                         # Optional: Volume to persist other data
+    env_file:
+      - .env                                 # Load environment variables from .env
     restart: unless-stopped
