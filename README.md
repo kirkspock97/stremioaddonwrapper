@@ -68,7 +68,7 @@ http://<server-ip>:7000/manifest.json
  ## Database Management - Included Script
   You can remove the individual shows, seasons and episodes with the "remove_imdb.sh" script.
   ```bash
-nano remove_imdb.sh"
+nano remove_imdb.sh
 ```
 Then paste in this code:
 ```bash
