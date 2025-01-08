@@ -66,7 +66,7 @@ http://<server-ip>:7000/manifest.json
 	•	Cache Clearing: You can manually clear the database by deleting the streams.db file or truncating it.
 
  ## Database Management - Included Script
-  You can remove the individual shows, seasons and episodes with the "remove_imdb.sh" script.
+  You can remove the individual shows, seasons and episodes with the "remove_imdb.sh" script. This configuration assumes that the script is being run from the same folder as the streams.db file.
   ```bash
 nano remove_imdb.sh
 ```
