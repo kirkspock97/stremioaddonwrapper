@@ -39,13 +39,15 @@ RANDOMIZE_STREAMS=true (or false to retain order between successive requests. De
 services:
   stremioaddonwrapper:
     image: kirkspock97/addonwrapperdb:latest
+    container_name: stremioaddonwrapper
     ports:
-      - "7000:7000"  # Expose port 7000 for the service
+      - "7000:7000"  # Expose port 7000 for external access
     volumes:
-      - ./data:/data  # Optional: Volume to persist data
-    restart: unless-stopped
+      - ./streams.db:/usr/src/app/streams.db  # Mount the database file
+      - ./data:/data                         # Optional: Volume to persist other data
     env_file:
-      - .env  # Load environment variables from the .env file
+      - .env                                 # Load environment variables from .env
+    restart: unless-stopped
 ```
 
 4. Start the service.
