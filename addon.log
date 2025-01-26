@@ -1,0 +1,37 @@
+
+> multisource@1.0.0 start
+> node index.js
+
+HTTP addon accessible at: http://127.0.0.1:7005/manifest.json
+Database connected.
+Returning cached results from the database
+Returning cached results from the database
+No cache found, fetching from external sources...
+Returning cached results from the database
+Returning cached results from the database
+Returning cached results from the database
+Returning cached results from the database
+No cache found, fetching from external sources...
+Returning cached results from the database
+Returning cached results from the database
+Returning cached results from the database
+No cache found, fetching from external sources...
+Error: SQLITE_READONLY: attempt to write a readonly database
+--> in Statement#run([
+  'tt5171438:3:4',
+  'series',
+  '[{"externalUrl":"https://github.com/Viren070/AIOStreams/issues/new?template=bug_report.yml","name":"[❌] CountbeersFlix","description":"Config was in an unexpected format, please check the logs or click this stream to create an issue on GitHub","cached":false}]',
+  1737893568972
+], [Function (anonymous)])
+    at Database.<anonymous> (/root/stremioaddonwrapper/node_modules/sqlite3/lib/sqlite3.js:76:19)
+    at Database.<anonymous> (/root/stremioaddonwrapper/node_modules/sqlite3/lib/sqlite3.js:20:19)
+    at /root/stremioaddonwrapper/index.js:82:8
+    at new Promise (<anonymous>)
+    at storeCache (/root/stremioaddonwrapper/index.js:80:10)
+    at /root/stremioaddonwrapper/index.js:149:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: 8,
+  code: 'SQLITE_READONLY',
+  __augmented: true
+}
+Killed

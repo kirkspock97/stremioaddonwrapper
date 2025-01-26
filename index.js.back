@@ -1,12 +1,12 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const axios = require("axios");
-const sqlite3 = require("sqlite3").verbose(); 
+const sqlite3 = require("sqlite3").verbose(); // Import SQLite
 require("dotenv").config();
 
 // Add-on manifest
 const manifest = {
   id: "org.stremio.combined",
-  version: "0.0.19", // Updated version
+  version: "0.0.17",
   name: "Stremio Addon Database Wrapper",
   description: "Fetches results from add-ons and stores in a local database.",
   resources: ["stream"],
@@ -93,12 +93,12 @@ function storeCache(type, id, streams) {
   });
 }
 
-// Helper function to process streams (you might not need this)
+// Helper function to process streams
 async function processStreams(streams) {
   return await Promise.all(
     streams.map(async (stream) => {
       if (stream.url && stream.url.includes("magnet:")) {
-        const cachedUrl = await getCachedStreamUrl(stream.url); // Assuming you have this function
+        const cachedUrl = await getCachedStreamUrl(stream.url);
         if (cachedUrl) {
           return { ...stream, url: cachedUrl, cached: true };
         }
@@ -126,23 +126,11 @@ builder.defineStreamHandler(async ({ type, id }) => {
 
     return { streams: sortedStreams };
   } else {
-    // If not cached, fetch from all sources, including adjacent episodes
+    // If not cached, fetch from all sources
     console.log("No cache found, fetching from external sources...");
-
-    const imdbId = id.split(':')[0]; // Extract IMDB ID
-    let [season, episode] = id.split(':').slice(1).map(Number); // Extract season and episode
-
-    // Construct IDs for adjacent episodes
-    const nextEpisodeId = `${imdbId}:${season}:${episode + 1}`;
-    const nextSeasonId = `${imdbId}:${season + 1}:1`;
-
-    const streamPromises = sourceUrls.flatMap((sourceUrl) => [
-      fetchFromSource(sourceUrl, type, id, TIMEOUT_MS),
-      fetchFromSource(sourceUrl, type, nextEpisodeId, TIMEOUT_MS),
-      fetchFromSource(sourceUrl, type, nextSeasonId, TIMEOUT_MS),
-    ]);
-
-    const streams = await Promise.all(streamPromises);
+    const streams = await Promise.all(
+      sourceUrls.map((sourceUrl) => fetchFromSource(sourceUrl, type, id, TIMEOUT_MS))
+    );
 
     // Flatten results
     const allStreams = streams.flat();
@@ -158,11 +146,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
 
     // Process streams and store them in the database
     const processedStreams = await processStreams(deduplicatedStreams);
-
-    // Store streams for ALL fetched IDs (original and adjacent)
-    await storeCache(type, id, processedStreams); 
-    await storeCache(type, nextEpisodeId, processedStreams); 
-    await storeCache(type, nextSeasonId, processedStreams); 
+    await storeCache(type, id, processedStreams);
 
     // Apply randomization if enabled
     const sortedStreams = RANDOMIZE_STREAMS
