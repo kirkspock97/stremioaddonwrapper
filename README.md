@@ -1,6 +1,6 @@
 # Stremio Addon Database Wrapper
 
-This is a custom Stremio addon designed to fetch results from multiple sources, store them in a local SQLite database, and manage the results intelligently. The addon supports caching, randomization of streams, and implements a request logging mechanism to handle frequent requests effectively.
+This is a custom Stremio addon designed to fetch results from multiple sources, store them in a local SQLite database. The addon supports caching, randomization of streams, and implements a request logging mechanism to handle frequent requests effectively.
 
 ## Features
 
