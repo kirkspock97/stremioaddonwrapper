@@ -67,7 +67,10 @@ This is a custom Stremio addon designed to fetch results from multiple sources, 
     ```
 6. Add the addon to your stremio session.
 
-The addon will be hosted at "https://[server-ip]:[port]/manifest.json"
+The addon will be hosted at 
+```
+https://[server-ip]:[port]/manifest.json
+```
 
 NB: I've not been able to get the addon working without SSL. 
 
