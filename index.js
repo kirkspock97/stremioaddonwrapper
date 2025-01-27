@@ -1,12 +1,12 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const axios = require("axios");
-const sqlite3 = require("sqlite3").verbose(); 
+const sqlite3 = require("sqlite3").verbose();
 require("dotenv").config();
 
 // Add-on manifest
 const manifest = {
   id: "org.stremio.combined",
-  version: "0.0.19", // Updated version
+  version: "0.0.25", // Updated version
   name: "Stremio Addon Database Wrapper",
   description: "Fetches results from add-ons and stores in a local database.",
   resources: ["stream"],
@@ -31,6 +31,9 @@ const TIMEOUT_MS = process.env.TIMEOUT_MS || 2000;
 // Check if randomization is enabled from the .env file
 const RANDOMIZE_STREAMS = process.env.RANDOMIZE_STREAMS === "true";
 
+// Get the deletion threshold from .env
+const DELETION_THRESHOLD = parseInt(process.env.DELETION_THRESHOLD) || 5; // Default to 5 if not defined or invalid
+
 // Set up the database
 const db = new sqlite3.Database("./streams.db", (err) => {
   if (err) {
@@ -47,6 +50,14 @@ db.run(`
     type TEXT,
     streams TEXT,
     timestamp INTEGER
+  );
+`);
+
+// Create a table to track requests for IMDB IDs
+db.run(`
+  CREATE TABLE IF NOT EXISTS request_log (
+    imdb_id TEXT NOT NULL,
+    timestamp INTEGER NOT NULL
   );
 `);
 
@@ -108,8 +119,78 @@ async function processStreams(streams) {
   );
 }
 
+// Function to log a request for an IMDB ID
+function logRequest(imdbId) {
+  const timestamp = Date.now();
+  db.run(
+    "INSERT INTO request_log (imdb_id, timestamp) VALUES (?, ?)",
+    [imdbId, timestamp],
+    function (err) {
+      if (err) {
+        console.error("Error logging request:", err);
+      }
+    }
+  );
+}
+
+// Function to check and delete episode ID if it reaches the threshold
+function checkAndDelete(type, id) {
+  const imdbId = id.split(':')[0]; // Extract IMDB ID
+  const oneHourAgo = Date.now() - 60 * 60 * 1000; // 1 hour in milliseconds
+
+  db.all(
+    "SELECT * FROM request_log WHERE imdb_id = ? AND timestamp >= ?",
+    [imdbId, oneHourAgo],
+    (err, rows) => {
+      if (err) {
+        console.error("Error checking request log:", err);
+      } else if (rows.length >= DELETION_THRESHOLD) { // Use the threshold from .env
+        // First, check if the entry exists in stream_cache
+        db.get("SELECT * FROM stream_cache WHERE id = ?", [id], (err, row) => {
+          if (err) {
+            console.error("Error checking stream_cache:", err);
+          } else if (row) { // Only delete and log if the entry exists
+            console.log(`Deleting ${id} from database due to frequent requests.`);
+            if (type === "series") {
+              // Delete only the specific episode for series
+              db.run("DELETE FROM stream_cache WHERE id = ?", [id], (err) => {
+                if (err) {
+                  console.error("Error deleting episode from stream_cache:", err);
+                }
+                // Delete the request logs for this id after deleting from cache
+                db.run("DELETE FROM request_log WHERE imdb_id = ?", [imdbId], (err) => { 
+                  if (err) {
+                    console.error("Error deleting request logs:", err);
+                  }
+                });
+              });
+            } else {
+              // Delete all entries with the imdbId for movies
+              db.run("DELETE FROM stream_cache WHERE id LIKE ?", `%${imdbId}%`, (err) => {
+                if (err) {
+                  console.error("Error deleting from stream_cache:", err);
+                }
+                // Delete the request logs for this id after deleting from cache
+                db.run("DELETE FROM request_log WHERE imdb_id = ?", [imdbId], (err) => { 
+                  if (err) {
+                    console.error("Error deleting request logs:", err);
+                  }
+                });
+              });
+            }
+          }
+        });
+      }
+    }
+  );
+}
+
 // Stream handler
 builder.defineStreamHandler(async ({ type, id }) => {
+  const imdbId = id.split(':')[0]; // Extract IMDB ID
+  logRequest(imdbId); // Log the request
+  checkAndDelete(type, id); // Check if it needs to be deleted, pass type and id
+
   // First, check if the result is cached in the database
   const cachedResult = await checkCache(type, id);
 
@@ -129,10 +210,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
     // If not cached, fetch from all sources, including adjacent episodes
     console.log("No cache found, fetching from external sources...");
 
-    const imdbId = id.split(':')[0]; // Extract IMDB ID
     let [season, episode] = id.split(':').slice(1).map(Number); // Extract season and episode
-
-    // Construct IDs for adjacent episodes
     const nextEpisodeId = `${imdbId}:${season}:${episode + 1}`;
     const nextSeasonId = `${imdbId}:${season + 1}:1`;
 
@@ -160,9 +238,9 @@ builder.defineStreamHandler(async ({ type, id }) => {
     const processedStreams = await processStreams(deduplicatedStreams);
 
     // Store streams for ALL fetched IDs (original and adjacent)
-    await storeCache(type, id, processedStreams); 
-    await storeCache(type, nextEpisodeId, processedStreams); 
-    await storeCache(type, nextSeasonId, processedStreams); 
+    await storeCache(type, id, processedStreams);
+    await storeCache(type, nextEpisodeId, processedStreams);
+    await storeCache(type, nextSeasonId, processedStreams);
 
     // Apply randomization if enabled
     const sortedStreams = RANDOMIZE_STREAMS

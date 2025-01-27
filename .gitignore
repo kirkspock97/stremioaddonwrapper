@@ -1,2 +1,3 @@
 # Ignore environment and log files
 .env
+streams.db
