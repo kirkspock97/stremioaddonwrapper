@@ -71,6 +71,6 @@ The addon will be hosted at "https://<server-ip>:<port>/manifest.json"
 
 NB: I've not been able to get the addon working without SSL. 
 
-##License
+## License
 
 This project is licensed under the MIT License. 
