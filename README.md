@@ -21,7 +21,7 @@ This is a custom Stremio addon designed to fetch results from multiple sources, 
 1. Clone the repository:
 
 	```bash
-	git clone https://github.com/your-username/stremio-addon-wrapper.git
+	git clone https://github.com/kirkspock97/stremioaddonwrapper.git
 	cd stremio-addon-wrapper
 	```
 
