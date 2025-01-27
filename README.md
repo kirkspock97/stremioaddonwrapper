@@ -35,7 +35,7 @@ This is a custom Stremio addon designed to fetch results from multiple sources, 
  	TIMEOUT_MS= #defaults to 2000
  	RANDOMIZE_STREAMS= #defaults to true
  	```
- 3. Create a blank `streams.db` file. If not, the docker compose may try to create a folder instead of a .db file which will break cause the container to fail. Whilst this step is technically optional it's probably worth doing just in case.
+ 3. Create a blank `streams.db` file. If not, the docker compose may try to create a folder instead of a .db file which will  cause the container to fail. Whilst this step is technically optional it's probably worth doing just in case.
     
 	```bash
  	touch streams.db
