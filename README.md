@@ -1,121 +1,76 @@
-# Stremio Addon Wrapper
+# Stremio Addon Database Wrapper
 
-This is a Stremio Addon Wrapper that fetches results from various sources.
-
-## Features
-
-- **Cache Streaming**: Cache stream results in a SQLite database to avoid redundant API calls.
-- **Source Randomization**: Optionally randomize the order of streams served (to alleviate burden on individual API tokens.)
-- **Configurable Timeout**: Timeout duration for fetching data from sources.
-- **Environment Variables**: Customize sources and configuration using the `.env` file.
-- **Database Storing**: All results are stored in a database, so that they can easily be fetched for the next user. When no results are found, the database deletes the cache, allowing for future releases to be cached with no user input required.
-
-## Getting Started
-
-### Prerequisites
-
-1. Install [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
-2. Make sure you have a Docker Hub account to push and pull images.
-
-### Setting Up
-
-1. Clone this repository or download the project files.
-
-   ```bash
-   git clone https://github.com/kirkspock97/stremioaddonwrapper.git
-   cd stremioaddonwrapper
-   ```
-2. Create a .env file in the project root. This file should contain the following environment variables:
-
-```bash
-SOURCE_1=http://example.com/addon1
-SOURCE_2=http://example.com/addon2
-TIMEOUT_MS=3000
-RANDOMIZE_STREAMS=true (or false to retain order between successive requests. Defaults to false if blank)
-```
-3. Prepare docker-compose.yml with the necessary configuration.
-
-```bash
-services:
-  stremioaddonwrapper:
-    image: kirkspock97/addonwrapperdb:latest
-    container_name: stremioaddonwrapper
-    ports:
-      - "7000:7000"  # Expose port 7000 for external access
-    volumes:
-      - ./streams.db:/usr/src/app/streams.db  # Mount the database file
-      - ./data:/data                         # Optional: Volume to persist other data
-    env_file:
-      - .env                                 # Load environment variables from .env
-    restart: unless-stopped
-```
-
-4. Start the service.
-```bash
-docker-compose up -d
-```
-
-5.Accessing the Service
-
-Once the container is running, you can access the Stremio Addon at:
-
-```bash
-http://<server-ip>:7000/manifest.json
-```
-
-## Database Management
-	•	Database File: The SQLite database streams.db is stored in the home directory of the product, and bind mounted to the docker container by default.
-	•	Cache Clearing: You can manually clear the database by deleting the streams.db file or truncating it.
-
- ## Database Management - Included Script
-  You can remove the individual shows, seasons and episodes with the "remove_imdb.sh" script. This configuration assumes that the script is being run from the same folder as the streams.db file.
-  ```bash
-nano remove_imdb.sh
-```
-Then paste in this code:
-```bash
-#!/bin/bash
-
-# Script to remove all records related to an IMDb entry from ./streams.db
-
-IMDB_ENTRY=$1  # Get the IMDb entry from the command-line argument
-
-if [ -z "$IMDB_ENTRY" ]; then
-  echo "Please provide an IMDb entry (e.g., tt3581920)."
-  exit 1
-fi
-
-# Path to your SQLite database
-DB_PATH="./streams.db"
-
-# Execute the DELETE command on the SQLite database
-echo "Removing records related to $IMDB_ENTRY from database $DB_PATH"
-
-# Running the SQLite3 command
-sqlite3 "$DB_PATH" <<EOF
-DELETE FROM stream_cache WHERE id LIKE '${IMDB_ENTRY}%';
-EOF
-
-# Optionally, print a confirmation message
-echo "Records related to $IMDB_ENTRY have been removed."
-```
-Then run this to make it executable:
-```bash
-chmod +x ./remove_imdb.sh
-```
-Then simply run this to remove from the database:
-```bash
-./remove_imdb.sh {IMDB CODE}:(# of season):(# of episode)
-```
-
+This is a custom Stremio addon designed to fetch results from multiple sources, store them in a local SQLite database, and manage the results intelligently. The addon supports caching, randomization of streams, and implements a request logging mechanism to handle frequent requests effectively.
 
 ## Features
-	•	Randomized Streams: When RANDOMIZE_STREAMS is set to true, the addon will serve the streams in a random order, regardless of the source.
-	•	Stream Caching: The addon stores stream data in a SQLite database (streams.db) to prevent repeated fetching from sources.
- 	• 	All your addons in one place: Sick of updating your stremio login/ logins for your family every time? Have them all in one place for ease of access.
- 	
+
+- Fetches streams from multiple sources defined in a `.env` file.
+- Caches results in a local SQLite database for faster subsequent access.
+- Implements a request log and deletion mechanism for frequently accessed IDs.
+- Supports deduplication and optional randomization of streams.
+- Handles adjacent episode fetching for series to enhance user experience.
+
+## Requirements
+
+- Docker
+- Docker Compose
+- A `.env` file configured with the necessary environment variables.
+
+## Installation and Setup
+
+1. Clone the repository:
+
+	```bash
+	git clone https://github.com/your-username/stremio-addon-wrapper.git
+	cd stremio-addon-wrapper
+	```
+
+2. Create and update your .env file.
+	```bash
+	cp .env-sample .env
+	```
+ 	Update to have:
+	```bash
+ 	DELETION_THRESHOLD= #number of times a file needs to be accessed in one hour before the addon deletes the database storage, allowing for fresh results.
+ 	TIMEOUT_MS= #defaults to 2000
+ 	RANDOMIZE_STREAMS= #defaults to true
+ 	```
+ 3. Create a blank `streams.db` file. If not, the docker compose may try to create a folder instead of a .db file which will break cause the container to fail. Whilst this step is technically optional it's probably worth doing just in case.
+    
+	```bash
+ 	touch streams.db
+ 	```
 
 
-## License
+ 4. Double check the compose.yml to make sure it fits what you want it to do.
+	```bash
+	 services:
+	  stremioaddonwrapper:
+	    image: kirkspock97/addonwrapperdb:latest
+ 	   container_name: stremioaddonwrapper
+ 	   ports:
+ 	     - "7005:7005"  # internal port is 7005, change external to whatever you want
+ 	   volumes:
+ 	     - ./streams.db:/usr/src/app/streams.db
+ 	     - ./data:/data
+	    env_file:
+	      - .env                            
+	    restart: unless-stopped
+ 	```
+ 5. Start the container
+    ```bash
+    docker compose up
+    ```
+    Start attached for the first run to ensure any errors are printed in console. If there's no issues ctrl+c to close the container and pass the -d flag to start detached.
+    ```
+    docker compose up -d
+    ```
+6. Add the addon to your stremio session.
 
-Use code as you wish. All this code has been written by ChatGPT, so will hopefully work as it does for me. No credit needed if you want to repurpose as your own. :)
+The addon will be hosted at "https://<server-ip>:<port>/manifest.json"
+
+NB: I've not been able to get the addon working without SSL. 
+
+##License
+
+This project is licensed under the MIT License. 
